@@ -25,9 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -82,9 +80,13 @@ public class CommentDao extends AbstractMFlixDao {
 
     // TODO> Ticket - Update User reviews: implement the functionality that enables adding a new
     // comment.
+    if (comment.getId() == null || comment.getId().isEmpty()) {
+      throw new IncorrectDaoOperation("Comment objects need to have an ID field set.");
+    }
+    commentCollection.insertOne(comment);
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return null;
+    return comment;
   }
 
   /**
@@ -104,8 +106,23 @@ public class CommentDao extends AbstractMFlixDao {
 
     // TODO> Ticket - Update User reviews: implement the functionality that enables updating an
     // user own comments
+    Bson query = Filters.and(
+            Filters.eq("email", email),
+            Filters.eq("_id", new ObjectId(commentId)));
+    Bson update = Updates.combine(
+            Updates.set("text", text),
+            Updates.set("date", new Date()));
+    UpdateResult result = commentCollection.updateOne(query, update);
+
+    if (result.getMatchedCount() > 0) {
+      if (result.getModifiedCount() != 1) {
+        log.warn("Comment `{}` text was not updated. Is it the same text?");
+      }
+      return true;
+    }
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
+    log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`", commentId, email);
     return false;
   }
 
