@@ -164,6 +164,16 @@ public class CommentDao extends AbstractMFlixDao {
     // // guarantee for the returned documents. Once a commenter is in the
     // // top 20 of users, they become a Critic, so mostActive is composed of
     // // Critic objects.
+    List<Bson> pipeline = new ArrayList<>();
+    pipeline.add(Aggregates.sortByCount("$email"));
+    pipeline.add(Aggregates.limit(20));
+
+
+    commentCollection
+            .withReadConcern(ReadConcern.MAJORITY)
+            .aggregate(pipeline, Critic.class)
+            .iterator()
+            .forEachRemaining(mostActive::add);
     return mostActive;
   }
 }
