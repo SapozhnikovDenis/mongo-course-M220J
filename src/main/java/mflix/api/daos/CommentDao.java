@@ -83,7 +83,10 @@ public class CommentDao extends AbstractMFlixDao {
     if (comment.getId() == null || comment.getId().isEmpty()) {
       throw new IncorrectDaoOperation("Comment objects need to have an ID field set.");
     }
-    commentCollection.insertOne(comment);
+    try {
+      commentCollection.insertOne(comment);
+    } catch (MongoWriteException e) {
+    }
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
     return comment;
@@ -112,16 +115,16 @@ public class CommentDao extends AbstractMFlixDao {
     Bson update = Updates.combine(
             Updates.set("text", text),
             Updates.set("date", new Date()));
-    UpdateResult result = commentCollection.updateOne(query, update);
-
-    if (result.getMatchedCount() > 0) {
-      if (result.getModifiedCount() != 1) {
-        log.warn("Comment `{}` text was not updated. Is it the same text?");
+    try {
+      UpdateResult result = commentCollection.updateOne(query, update);
+      if (result.getMatchedCount() > 0) {
+        if (result.getModifiedCount() != 1) {
+          log.warn("Comment `{}` text was not updated. Is it the same text?");
+        }
+        return true;
       }
-      return true;
+    } catch (MongoWriteException e) {
     }
-    // TODO> Ticket - Handling Errors: Implement a try catch block to
-    // handle a potential write exception when given a wrong commentId.
     log.error("Could not update comment `{}`. Make sure the comment is owned by `{}`", commentId, email);
     return false;
   }
@@ -142,11 +145,15 @@ public class CommentDao extends AbstractMFlixDao {
     Bson query = Filters.and(
             Filters.eq("email", email),
             Filters.eq("_id", new ObjectId(commentId)));
-    DeleteResult result = commentCollection.deleteOne(query);
+    try {
+      DeleteResult result = commentCollection.deleteOne(query);
+      return result.getDeletedCount() > 0;
+    } catch (MongoWriteException e) {
+      return false;
+    }
     // TIP: make sure to match only users that own the given commentId
     // TODO> Ticket Handling Errors - Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return result.getDeletedCount() > 0;
   }
 
   /**

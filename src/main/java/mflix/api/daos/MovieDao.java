@@ -1,5 +1,6 @@
 package mflix.api.daos;
 
+import com.mongodb.MongoException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.*;
@@ -47,7 +48,12 @@ public class MovieDao extends AbstractMFlixDao {
         //TODO> Ticket: Handling Errors - implement a way to catch a
         //any potential exceptions thrown while validating a movie id.
         //Check out this method's use in the method that follows.
-        return true;
+        try {
+            moviesCollection.find(Filters.eq("_id", movieId));
+            return true;
+        } catch (MongoException e) {
+            return false;
+        }
     }
 
     /**
@@ -61,19 +67,22 @@ public class MovieDao extends AbstractMFlixDao {
         if (!validIdValue(movieId)) {
             return null;
         }
+        try {
+            List<Bson> pipelineWithOutBuilders = Arrays.asList(
+                    new Document("$match", new Document("_id", new ObjectId(movieId))),
+                    new Document("$lookup", new Document("from", "comments")
+                            .append("let", new Document("id", "$_id"))
+                            .append("pipeline", Arrays.asList(
+                                    new Document("$match", new Document("$expr", new Document("$eq", Arrays.asList("$movie_id", "$$id")))),
+                                    new Document("$sort", new Document("date", -1L))))
+                            .append("as", "comments")));
 
-        List<Bson> pipelineWithOutBuilders = Arrays.asList(
-                new Document("$match", new Document("_id", new ObjectId(movieId))),
-                new Document("$lookup", new Document("from", "comments")
-                        .append("let", new Document("id", "$_id"))
-                        .append("pipeline", Arrays.asList(
-                                new Document("$match", new Document("$expr", new Document("$eq", Arrays.asList("$movie_id", "$$id")))),
-                                new Document("$sort", new Document("date", -1L))))
-                        .append("as", "comments")));
+            Document movie = moviesCollection.aggregate(pipelineWithOutBuilders).first();
 
-        Document movie = moviesCollection.aggregate(pipelineWithOutBuilders).first();
-
-        return movie;
+            return movie;
+        } catch (IllegalArgumentException e) {
+            return new Document();
+        }
     }
 
     /**
